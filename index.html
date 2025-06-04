@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartPay Advisor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <div class="max-w-3xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">SmartPay Advisor</h1>
+    <p class="mb-6">Plan how to pay yourself — salary, dividends, or both — and know what to remit to the CRA. </p>
+
+    <!-- Step 1: Business Type -->
+    <div class="mb-6">
+      <label class="block font-semibold mb-2">What type of business do you operate?</label>
+      <select id="businessType" class="w-full p-2 border rounded">
+        <option value="corp">Incorporated</option>
+        <option value="soleprop">Sole Proprietor</option>
+      </select>
+    </div>
+
+    <!-- Step 2: Inputs -->
+    <div class="mb-4">
+      <label class="inline-flex items-center">
+        <input type="checkbox" id="includeCPP" class="form-checkbox mr-2">
+        Contribute to CPP (for salary)
+      </label>
+    </div>
+    <div class="mb-6">
+      <label class="block mb-2">Net Business Income ($)</label>
+      <input type="number" id="netIncome" class="w-full p-2 border rounded" placeholder="e.g. 100000">
+
+      <label class="block mt-4 mb-2">Business Expenses to Deduct ($)</label>
+      <input type="number" id="expenses" class="w-full p-2 border rounded" placeholder="e.g. 20000">
+
+      <label class="block mt-4 mb-2">Province</label>
+      <select id="province" class="w-full p-2 border rounded">
+        <option value="on">Ontario</option>
+        <option value="bc">British Columbia</option>
+        <option value="ab">Alberta</option>
+        <!-- Add more provinces -->
+      </select>
+
+      <label class="block mt-4 mb-2">Age of the Business</label>
+      <input type="number" id="businessAge" class="w-full p-2 border rounded" placeholder="e.g. 3">
+<p id="ageWarning" class="text-sm text-yellow-600 mt-1 hidden">⚠️ Corporations over 1 year old may need to remit taxes in installments throughout the year.</p>
+    </div>
+
+    <!-- Calculate Button -->
+    <button onclick="calculateResults()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Calculate</button>
+
+    <!-- Output Section -->
+    <!-- Slider Section -->
+    <div id="sliderSection" class="mt-8 hidden">
+      <label for="customMix" class="block mb-2 font-semibold">Adjust Salary vs Dividend Mix</label>
+      <input type="range" id="customMix" min="0" max="100" value="50" class="w-full">
+      <p class="text-sm mt-1 text-gray-600">Salary: <span id="sliderSalary">50</span>% | Dividends: <span id="sliderDividends">50</span>%</p>
+      <div id="sliderTakeHome" class="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm font-medium bg-white p-4 rounded shadow">
+        <p>Take-home: <span id="sliderTakeHomeVal">$--</span></p>
+        <p>Corp tax (owed at year-end): <span id="sliderCorpTax">$--</span></p>
+        <p>Personal tax: <span id="sliderPersonalTax">$--</span></p>
+        <p>Total tax: <span id="sliderTotalTax">$--</span></p>
+      <p id="monthlyRemit" class="mt-4 text-sm text-gray-700 font-medium hidden"></p>
+    </div>
+    <div id="results" class="mt-8 hidden">
+      <h2 class="text-xl font-semibold mb-4">Results</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="font-bold mb-2">All Salary</h3>
+          <p id="salaryTakeHome">Take-home: $--</p>
+          <p id="salaryAfterTax">Take-home after personal income tax (excl. CPP): $--</p>
+          <p id="salaryTax">Personal tax: $--</p>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="font-bold mb-2">All Dividends</h3>
+          <p id="dividendTakeHome">Take-home: $--</p>
+          <p id="dividendTax">Personal tax: $--</p>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="font-bold mb-2">Optimal Mix</h3>
+          <p id="mixBreakdown">--</p>
+          <p id="mixTakeHome">Take-home: $--</p>
+          <p id="mixTax">Tax to remit: $--</p>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="mt-8 bg-yellow-100 p-4 rounded">
+        <p class="mb-2 font-semibold">Automate your payroll and remittances</p>
+        <a href="https://paymentevolution.com" target="_blank" class="inline-block bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Get Started with PaymentEvolution</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function calculateProgressiveTax(income) {
+      let tax = 0;
+      const brackets = [
+        { upTo: 50197, rate: 0.2005 },
+        { upTo: 100392, rate: 0.2415 },
+        { upTo: 155625, rate: 0.2965 },
+        { upTo: 221708, rate: 0.3148 },
+        { upTo: Infinity, rate: 0.3389 }
+      ];
+
+      let previous = 0;
+      for (const bracket of brackets) {
+        if (income > bracket.upTo) {
+          tax += (bracket.upTo - previous) * bracket.rate;
+          previous = bracket.upTo;
+        } else {
+          tax += (income - previous) * bracket.rate;
+          break;
+        }
+      }
+
+      return tax;
+    }
+
+    function calculateResults() {
+      const grossIncome = parseFloat(document.getElementById('netIncome').value);
+      const expenses = parseFloat(document.getElementById('expenses').value) || 0;
+      const income = grossIncome - expenses;
+      const province = document.getElementById('province').value;
+      const businessAge = parseInt(document.getElementById('businessAge').value);
+      const businessType = document.getElementById('businessType').value;
+
+      if (isNaN(income) || income <= 0) {
+        alert('Please enter a valid income');
+        return;
+      }
+
+      // Placeholder tax rates
+      let salaryRate = 0; // replaced by progressive function
+      const salaryTax = calculateProgressiveTax(income);
+      const dividendRate = 0.2;
+
+      // Adjust salary rate if business is older than 1 year (installment required)
+      if (businessType === 'corp' && businessAge > 1) {
+        salaryRate += 0.01; // Slight bump to simulate CRA remittance burden or penalties
+        document.getElementById('ageWarning').classList.remove('hidden');
+      } else {
+        document.getElementById('ageWarning').classList.add('hidden');
+      }
+
+      // Salary only
+      let cpp = 0;
+      if (document.getElementById('includeCPP').checked) {
+        cpp = Math.min(income, 66600) * 0.109; // simplified CPP contribution cap
+      }
+      const salaryTaxWithCPP = salaryTax + cpp;
+      const salaryTakeHome = income - salaryTaxWithCPP;
+
+      // Dividend only
+      const dividendTax = income * dividendRate;
+      const dividendTakeHome = income - dividendTax;
+
+      // Optimize mix (in 10% increments)
+      let optimalTotalTax = Infinity;
+      let optimalTakeHome = 0;
+      let optimalMix = 0;
+      let optimalCorpTax = 0;
+      let optimalPersonalTax = 0;
+
+      const corpTaxRate = 0.12; // placeholder corp tax rate
+
+      for (let i = 0; i <= 100; i += 10) {
+        const salaryPortion = income * (i / 100);
+        const dividendPortion = income - salaryPortion;
+
+        const corpProfit = income - salaryPortion; // corp keeps what's not paid as salary
+        const corpTax = corpProfit * corpTaxRate;
+        const availableDividends = corpProfit - corpTax;
+
+        let cppSlider = 0;
+        if (document.getElementById('includeCPP').checked) {
+          cppSlider = Math.min(salaryPortion, 66600) * 0.109;
+        }
+        const personalSalaryTax = (salaryPortion * salaryRate) + cppSlider;
+        const personalDividendTax = availableDividends * dividendRate;
+
+        const totalTax = corpTax + personalSalaryTax + personalDividendTax;
+        const takeHome = income - totalTax;
+
+        if (totalTax < optimalTotalTax) {
+          optimalTotalTax = totalTax;
+          optimalTakeHome = takeHome;
+          optimalMix = i;
+          optimalCorpTax = corpTax;
+          optimalPersonalTax = personalSalaryTax + personalDividendTax;
+        }
+      }
+      document.getElementById('salaryTakeHome').innerText = `Take-home: $${salaryTakeHome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      document.getElementById('salaryAfterTax').innerText = `Take-home after personal income tax (excl. CPP): $${(income - salaryTax).toFixed(2)}`;
+      document.getElementById('salaryTax').innerText = `Personal tax: $${salaryTaxWithCPP.toFixed(2)}`;
+
+      document.getElementById('dividendTakeHome').innerText = `Take-home: $${dividendTakeHome.toFixed(2)}`;
+      document.getElementById('dividendTax').innerText = `Personal tax: $${dividendTax.toFixed(2)}`;
+
+      const optimalSalary = income * (optimalMix / 100);
+      const optimalDividends = income - optimalSalary;
+      document.getElementById('mixBreakdown').innerText = `${optimalMix}% salary ($${optimalSalary.toFixed(2)}), ${100 - optimalMix}% dividends ($${optimalDividends.toFixed(2)})`;
+      document.getElementById('mixTakeHome').innerText = `Take-home: $${optimalTakeHome.toFixed(2)}`;
+      document.getElementById('mixTax').innerText = `Corp tax: $${optimalCorpTax.toFixed(2)}, Personal tax: $${optimalPersonalTax.toFixed(2)}, Total: $${optimalTotalTax.toFixed(2)}`;
+      
+
+      document.getElementById('results').classList.remove('hidden');
+      document.getElementById('sliderSection').classList.remove('hidden');
+      updateSliderOutput(income, salaryRate, dividendRate);
+
+      // Show estimated monthly remittance from optimal mix
+      // declared once above; no need to redeclare here
+      const estimatedMonthlyRemit = optimalTotalTax / 12;
+      monthlyRemitElement.classList.remove('hidden');
+      monthlyRemitElement.innerText = `Estimated monthly remittance: $${estimatedSliderMonthlyRemit.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+      // Show estimated monthly remittance from slider mixTax
+      const monthlyRemitElement = document.getElementById('monthlyRemit');
+      const slider = document.getElementById('customMix');
+      const salaryPercent = parseInt(slider.value);
+      const salaryPortion = income * (salaryPercent / 100);
+      const corpProfit = income - salaryPortion;
+      const corpTax = corpProfit * 0.12;
+      const availableDividends = corpProfit - corpTax;
+      const personalSalaryTax = calculateProgressiveTax(salaryPortion);
+      const personalDividendTax = availableDividends * 0.2;
+      const totalSliderTax = corpTax + personalSalaryTax + personalDividendTax;
+      const estimatedSliderMonthlyRemit = totalSliderTax / 12;
+      
+
+      // Show estimated monthly remittance (divided by 12)
+      // removed duplicate estimatedMonthlyRemit declaration
+      monthlyRemitElement.classList.remove('hidden');
+      monthlyRemitElement.innerText = `Estimated monthly remittance: $${estimatedMonthlyRemit.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    }
+  </script>
+<script>
+  function updateSliderOutput(income, salaryRate, dividendRate) {
+    const monthlyRemitElement = document.getElementById('monthlyRemit');
+    const slider = document.getElementById('customMix');
+    const salaryPercent = parseInt(slider.value);
+    const dividendPercent = 100 - salaryPercent;
+
+    const salaryPortion = income * (salaryPercent / 100);
+    const dividendPortion = income - salaryPortion;
+    const corpProfit = income - salaryPortion;
+    const corpTax = corpProfit * 0.12;
+    const availableDividends = corpProfit - corpTax;
+
+    const personalSalaryTax = calculateProgressiveTax(salaryPortion);
+    const personalDividendTax = availableDividends * dividendRate;
+    const mixTax = corpTax + personalSalaryTax + personalDividendTax;
+    const mixTakeHome = income - mixTax;
+
+    document.getElementById('sliderTakeHomeVal').innerText = `$${mixTakeHome.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    document.getElementById('sliderCorpTax').innerText = `$${corpTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    document.getElementById('sliderPersonalTax').innerText = `$${(personalSalaryTax + personalDividendTax).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    document.getElementById('sliderTotalTax').innerText = `$${mixTax.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+
+    document.getElementById('sliderSalary').innerText = salaryPercent;
+    document.getElementById('sliderDividends').innerText = dividendPercent;
+
+    const estimatedMonthlyRemit = mixTax / 12;
+    monthlyRemitElement.classList.remove('hidden');
+    monthlyRemitElement.innerText = `Estimated monthly remittance: $${estimatedMonthlyRemit.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+    
+  }
+
+  document.getElementById('customMix').addEventListener('input', () => {
+    const income = parseFloat(document.getElementById('netIncome').value);
+    // use progressive tax instead of fixed rate
+    let salaryRate = 0;
+    const dividendRate = 0.2;
+    const businessAge = parseInt(document.getElementById('businessAge').value);
+    const businessType = document.getElementById('businessType').value;
+    if (businessType === 'corp' && businessAge > 1) salaryRate += 0.01;
+    updateSliderOutput(income, salaryRate, dividendRate);
+  });
+</script>
+</body>
+</html>
